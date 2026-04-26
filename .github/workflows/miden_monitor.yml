@@ -4,7 +4,7 @@ on:
   schedule:
     # Runs at 7, 17, 27, 37, 47, and 57 minutes past the hour
     - cron: '7,17,27,37,47,57 * * * *'
-  workflow_dispatch:      # Allows you to click "Run workflow" manually
+  workflow_dispatch:      # Allows manual trigger for testing
 
 jobs:
   health-check:
@@ -16,19 +16,21 @@ jobs:
       - name: Ping Miden RPC
         id: ping
         run: |
-          # Fetch the HTTP status code (e.g., 200, 404, 503)
+          # Fetch the HTTP status code
           RPC=$(curl -s -o /dev/null -w "%{http_code}" https://rpc.testnet.miden.io)
           echo "RPC_STATUS=$RPC" >> $GITHUB_ENV
           echo "Current RPC Status: $RPC"
           
-          # If the status is NOT 200, the job fails and triggers the notification
+          # If the status is NOT 200 (Healthy), this step exits with error 1
+          # This triggers the "if: failure()" step below
           if [ "$RPC" -ne 200 ]; then
             exit 1
           fi
 
-      - name: Notify Telegram on Failure
+      - name: Notify Telegram Channel
         if: failure()
         run: |
+          # Using data-urlencode to ensure the message is accepted by Telegram
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
             --data-urlencode "chat_id=${{ secrets.TELEGRAM_TO }}" \
             --data-urlencode "parse_mode=Markdown" \
@@ -40,4 +42,3 @@ jobs:
 *Timestamp:* $(date -u +'%Y-%m-%d %H:%M:%S') UTC
 
 🔗 [View GitHub Logs](https://github.com/${{ github.repository }}/actions)"
-
