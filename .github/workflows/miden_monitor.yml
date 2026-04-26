@@ -2,7 +2,6 @@ name: Miden Fixed-Interval Health Monitor
 
 on:
   schedule:
-    # Runs at 7, 17, 27, 37, 47, and 57 minutes past the hour
     - cron: '7,17,27,37,47,57 * * * *'
   workflow_dispatch:
 
@@ -11,20 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Miden RPC
-        id: status
         run: |
           RPC=$(curl -s -o /dev/null -w "%{http_code}" https://rpc.testnet.miden.io)
           echo "RPC_STATUS=$RPC" >> $GITHUB_ENV
-          echo "Current RPC Status: $RPC"
-          # The next line will only 'fail' the job if the RPC is not 200
+          # If the RPC is 200 (Healthy), this step succeeds and the next step is SKIPPED.
           if [ "$RPC" -ne 200 ]; then exit 1; fi
 
-      - name: Send Telegram Alert (Confirmation Test)
-        # Change 'always()' back to 'failure()' after you receive the message
-        if: always() 
+      - name: Notify Telegram Channel
+        if: failure() # <--- This makes the bot SILENT unless the RPC is down
         run: |
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
             -d "chat_id=${{ secrets.TELEGRAM_TO }}" \
             -d "parse_mode=Markdown" \
-            -d "text=🛡️ *Miden Monitor Active*%0A%0A*Status:* RPC Node is UP (Code: ${{ env.RPC_STATUS }})%0A*Schedule:* 10-minute intervals starting at :07%0A*Time:* $(date -u +'%H:%M:%S') UTC"
-            
+            -d "text=🚨 *MIDEN NETWORK ALERT*%0A%0A*Status:* RPC Endpoint Unreachable%0A*Error Code:* ${{ env.RPC_STATUS }}%0A*Timestamp:* $(date -u +'%Y-%m-%d %H:%M:%S') UTC%0A%0A_Automatic 10-minute health check failed._"
