@@ -2,24 +2,42 @@ name: Miden Fixed-Interval Health Monitor
 
 on:
   schedule:
+    # Runs at 7, 17, 27, 37, 47, and 57 minutes past the hour
     - cron: '7,17,27,37,47,57 * * * *'
-  workflow_dispatch:
+  workflow_dispatch:      # Allows you to click "Run workflow" manually
 
 jobs:
   health-check:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Ping Miden RPC
+        id: ping
         run: |
+          # Fetch the HTTP status code (e.g., 200, 404, 503)
           RPC=$(curl -s -o /dev/null -w "%{http_code}" https://rpc.testnet.miden.io)
           echo "RPC_STATUS=$RPC" >> $GITHUB_ENV
-          # If the RPC is 200 (Healthy), this step succeeds and the next step is SKIPPED.
-          if [ "$RPC" -ne 200 ]; then exit 1; fi
+          echo "Current RPC Status: $RPC"
+          
+          # If the status is NOT 200, the job fails and triggers the notification
+          if [ "$RPC" -ne 200 ]; then
+            exit 1
+          fi
 
-      - name: Notify Telegram Channel
-        if: failure() # <--- This makes the bot SILENT unless the RPC is down
+      - name: Notify Telegram on Failure
+        if: failure()
         run: |
-          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ secrets.TELEGRAM_TO }}" \
-            -d "parse_mode=Markdown" \
-            -d "text=🚨 *MIDEN NETWORK ALERT*%0A%0A*Status:* RPC Endpoint Unreachable%0A*Error Code:* ${{ env.RPC_STATUS }}%0A*Timestamp:* $(date -u +'%Y-%m-%d %H:%M:%S') UTC%0A%0A_Automatic 10-minute health check failed._"
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
+            --data-urlencode "chat_id=${{ secrets.TELEGRAM_TO }}" \
+            --data-urlencode "parse_mode=Markdown" \
+            --data-urlencode "text=🚨 *MIDEN SERVICE ALERT*
+
+*Status:* RPC Endpoint Unreachable
+*Error Code:* ${{ env.RPC_STATUS }}
+*Target:* rpc.testnet.miden.io
+*Timestamp:* $(date -u +'%Y-%m-%d %H:%M:%S') UTC
+
+🔗 [View GitHub Logs](https://github.com/${{ github.repository }}/actions)"
+
