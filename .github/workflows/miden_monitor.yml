@@ -1,4 +1,4 @@
-name: Miden 9-Minute Health Monitor
+name: Miden Health Monitor
 
 on:
   schedule:
@@ -6,35 +6,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  health-check:
+  check-rpc:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Check Miden RPC
-        id: status
+      - name: Ping Miden RPC
         run: |
-          # We check the RPC Node only to avoid 429 Rate Limit errors
-          RPC=$(curl -s -o /dev/null -w "%{http_code}" https://rpc.testnet.miden.io)
-          echo "RPC Node Status: $RPC"
-          
-          if [ "$RPC" -ne 200 ]; then
-            echo "NODE_UP=false" >> $GITHUB_ENV
-            exit 1
-          else
-            echo "NODE_UP=true" >> $GITHUB_ENV
-          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://rpc.testnet.miden.io)
+          echo "Current Status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then exit 1; fi
 
-      - name: Notify Telegram on Failure
-        if: failure()
+      - name: Send Test Message
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
-          format: markdown
           message: |
-            🚨 **Miden Node Alert** 🚨
-            The RPC Node (testnet.miden.io) is unresponsive.
-            **Time:** $(date +'%H:%M') WAT
-            🔗 [View Logs](https://github.com/${{ github.repository }}/actions)
+            ✅ **Connection Successful!**
+            Damilola, your Miden Monitor is now linked to GitHub. 
+            It will check the network every 9 minutes.
