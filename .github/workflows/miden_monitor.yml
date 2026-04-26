@@ -1,0 +1,42 @@
+name: Miden 9-Minute Health Monitor
+
+on:
+  schedule:
+    - cron: '*/9 * * * *'  # Runs every 9 minutes
+  workflow_dispatch:      # Allows you to click "Run" manually
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Check Miden Services
+        id: status
+        run: |
+          # Testing the Playground and the RPC Node
+          SITE=$(curl -s -o /dev/null -w "%{http_code}" https://playground.miden.xyz/)
+          RPC=$(curl -s -o /dev/null -w "%{http_code}" https://rpc.testnet.miden.io)
+          
+          echo "Playground: $SITE"
+          echo "RPC: $RPC"
+          
+          if [ "$SITE" -ne 200 ] || [ "$RPC" -ne 200 ]; then
+            exit 1
+          fi
+
+      - name: Notify Telegram on Failure
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            🚨 **Miden Alert** 🚨
+            One or more services are unreachable.
+            
+            🌐 [Playground](https://playground.miden.xyz/)
+            ⚙️ [RPC Node](https://rpc.testnet.miden.io)
+            🔗 [View Details](https://github.com/${{ github.repository }}/actions)
