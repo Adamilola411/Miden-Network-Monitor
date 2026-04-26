@@ -15,13 +15,15 @@ jobs:
       - name: Check Miden RPC
         id: status
         run: |
-          # We focus on the RPC Node as it is the most stable metric
+          # We check the RPC Node only to avoid 429 Rate Limit errors
           RPC=$(curl -s -o /dev/null -w "%{http_code}" https://rpc.testnet.miden.io)
-          echo "RPC_STATUS=$RPC" >> $GITHUB_ENV
           echo "RPC Node Status: $RPC"
           
           if [ "$RPC" -ne 200 ]; then
+            echo "NODE_UP=false" >> $GITHUB_ENV
             exit 1
+          else
+            echo "NODE_UP=true" >> $GITHUB_ENV
           fi
 
       - name: Notify Telegram on Failure
@@ -33,6 +35,6 @@ jobs:
           format: markdown
           message: |
             🚨 **Miden Node Alert** 🚨
-            The RPC Node is unresponsive.
-            **Status Code:** ${{ env.RPC_STATUS }}
-            🔗 [Check Logs](https://github.com/${{ github.repository }}/actions)
+            The RPC Node (testnet.miden.io) is unresponsive.
+            **Time:** $(date +'%H:%M') WAT
+            🔗 [View Logs](https://github.com/${{ github.repository }}/actions)
