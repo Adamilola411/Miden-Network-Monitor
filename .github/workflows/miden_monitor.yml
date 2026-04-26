@@ -1,26 +1,43 @@
-name: Miden Health Monitor
+name: Miden Fixed-Interval Health Monitor
 
 on:
   schedule:
-    - cron: '*/9 * * * *'
-  workflow_dispatch:
+    # Runs at 7, 17, 27, 37, 47, and 57 minutes past the hour
+    - cron: '7,17,27,37,47,57 * * * *'
+  workflow_dispatch:      # Manual trigger for testing
 
 jobs:
-  check-rpc:
+  health-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Miden RPC
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://rpc.testnet.miden.io)
-          echo "Current Status: $STATUS"
-          if [ "$STATUS" -ne 200 ]; then exit 1; fi
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Send Test Message
+      - name: Ping Miden RPC
+        id: status
+        run: |
+          # Testing the Miden Testnet RPC
+          RPC=$(curl -s -o /dev/null -w "%{http_code}" https://rpc.testnet.miden.io)
+          echo "RPC Node Status: $RPC"
+          
+          if [ "$RPC" -ne 200 ]; then
+            exit 1
+          fi
+
+      - name: Notify Telegram on Failure
+        if: failure()
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
           message: |
-            ✅ **Connection Successful!**
-            Damilola, your Miden Monitor is now linked to GitHub. 
-            It will check the network every 9 minutes.
+            🚨 **Miden Service Alert** 🚨
+            
+            **Status:** RPC Endpoint Unreachable
+            **Target:** https://rpc.testnet.miden.io
+            **Interval:** 10-minute fixed cycle check
+            **Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S') UTC
+            
+            🔗 [View Action Logs](https://github.com/${{ github.repository }}/actions)
+            
